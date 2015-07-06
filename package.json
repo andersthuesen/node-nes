@@ -1,0 +1,27 @@
+{
+  "name": "node-nes",
+  "version": "1.0.0",
+  "description": "A NES emulator written in node for use on the web!",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ande765a/node-nes.git"
+  },
+  "keywords": [
+    "NES",
+    "emulator",
+    "javascript",
+    "es6",
+    "nodejs",
+    "iojs"
+  ],
+  "author": "Anders Bredgaard Thuesen (@ande765a)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ande765a/node-nes/issues"
+  },
+  "homepage": "https://github.com/ande765a/node-nes#readme"
+}
