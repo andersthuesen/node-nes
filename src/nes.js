@@ -36,7 +36,47 @@ class NES {
 
   loadROM(path) {
     this.ROM = new ROM(this);
-    this.ROM.load();
+    var self = this;
+
+    var promise = new Promise(function(resolve, reject) {
+
+      function loadROMData() {
+        var data = arguments[arguments.length-1]; //Get data from last argument
+        self.ROM.load(data, function(err, ROM) {
+
+          if (err) {
+              self.fail(err);
+              reject(err);
+
+          } else {
+
+            resolve(ROM);
+
+          }
+
+        });
+      }
+
+
+      if(process.browser) {
+
+        // Load using ajax.
+        var xhr = require("xhr");
+        xhr({uri: path}, loadROMData);
+
+
+      } else {
+        // Load via fs module
+        var fs = require("fs");
+        fs.readFile(path, "utf8", loadROMData);
+
+      }
+
+
+    });
+
+    return promise;
+
   }
 
   reset() {
@@ -67,10 +107,17 @@ class NES {
 
   }
 
+  fail(err) {
+
+    this.stop();
+
+    if(err instanceof Error)
+      throw err;
+
+    throw new Error(err || "Something went wrong");
+
+  }
+
 }
 
-var myNES = new NES;
-window.nes = myNES;
-
-myNES.loadROM("test.rom");
-console.log(myNES);
+module.exports = NES;

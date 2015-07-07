@@ -2,9 +2,10 @@
   "name": "node-nes",
   "version": "1.0.0",
   "description": "A NES emulator written in node for use on the web!",
-  "main": "index.js",
+  "main": "src/nes.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "budo main.js --live --dir ."
   },
   "repository": {
     "type": "git",
@@ -23,5 +24,8 @@
   "bugs": {
     "url": "https://github.com/ande765a/node-nes/issues"
   },
-  "homepage": "https://github.com/ande765a/node-nes#readme"
+  "homepage": "https://github.com/ande765a/node-nes#readme",
+  "devDependencies": {
+    "xhr": "^2.0.2"
+  }
 }
