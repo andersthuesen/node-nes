@@ -8,7 +8,7 @@ class NES {
   constructor(options) {
 
     this.CPU      = new CPU(this);
-    this.Memory   = new Memory;
+    this.Memory   = new Memory(0x10000);
     this.ROM      = null;
 
     this.frameInterval    = null;
@@ -82,6 +82,7 @@ class NES {
   reset() {
 
     this.CPU.reset();
+    this.Memory.reset();
 
   }
 
@@ -100,7 +101,22 @@ class NES {
   }
 
   frame() {
-    console.log("test");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   }
 
   pause() {

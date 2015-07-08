@@ -27,13 +27,16 @@ class CPU {
     this.registers = {
       PC: 0x0000, // 16-bit Program Counter
       SP: 0x00,   // Stack pointer
+      A:  0x00,   // Accumulator (used in arithmetic)
+      X:  0x00,   // X register
+      Y:  0x00,   // Y register
       P:  0x00,   /* Processor flags (from least significant bit)
                    *  (Carry, Zero, Interrupt disable, Decimal mode, Break, Overflow, Negative)
                    */
 
       get P() { //Gets the byte of flags by combining the individual flags in self.flags
 
-        return  (self.flags.CARRY)          |
+        return  (self.flags.CARRY     << 0) |
                 (self.flags.ZERO      << 1) |
                 (self.flags.INTERRUPT << 2) |
                 (self.flags.DECIMAL   << 3) |
@@ -47,7 +50,7 @@ class CPU {
 
       set P(flags) {
 
-        self.flags.CARRY      = (flags & 0b1);
+        self.flags.CARRY      = (flags & 0b1)         >> 0;
         self.flags.ZERO       = (flags & 0b10)        >> 1;
         self.flags.INTERRUPT  = (flags & 0b100)       >> 2;
         self.flags.DECIMAL    = (flags & 0b1000)      >> 3;
@@ -55,18 +58,17 @@ class CPU {
         self.flags.OVERFLOW   = (flags & 0b1000000)   >> 6;
         self.flags.NEGATIVE   = (flags & 0b10000000)  >> 7;
 
-      },
+      }
 
-      A:  0x00,   // Accumulator (used in arithmetic)
-      X:  0x00,   // X register
-      Y:  0x00    // Y register
     };
-
 
   }
 
   emulate() { //Should run the instructions
 
+    //get opcode and
+
+    this.registers.PC++; //Increment Program counter to move to next instruction
   }
 
   reset() {
