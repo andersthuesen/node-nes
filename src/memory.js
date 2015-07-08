@@ -1,6 +1,6 @@
 "use strict";
 
-class Memory extends Array {
+class Memory extends Array { //Gosh this is cool!
 
   constructor(size) {
     super(size || 0x10000);
