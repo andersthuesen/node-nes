@@ -1,4 +1,7 @@
 "use strict";
+
+var Mapper = require("./mappers");
+
 class ROM {
 
   constructor(NES) {
@@ -92,13 +95,17 @@ class ROM {
     return chunk;
   }
 
-  load(data, callback) {
+  load(data) {
 
     //Check if ROM is valid
-    if(!~data.indexOf("NES\x1a"))
-      return callback(new Error("ROM image not valid!"));
+    if(!~data.indexOf("NES\x1a")) {
+      let err = new Error("ROM image not valid!")
+      this.NES.fail(err)
+      return callback(err);
+    }
 
     //Should be removed in release build
+    this.data = data;
     this.valid = true;
 
     //Get header from first 16 bytes of ROM
@@ -122,9 +129,8 @@ class ROM {
       if (j) { this.mapper &= 0xF; break; }
     }
 
-
     //Load PRG into each bank
-    let offset = 16;
+    /*let offset = 16;
     this.PRG  = new Array(this.PRGBanks);
     for(let i = 0; i < this.PRGBanks; i++) {
       this.PRG[i] = this._loadChunk(data, 0x4000, offset)
@@ -136,10 +142,17 @@ class ROM {
     for(let i = 0; i < this.CHRBanks; i++) {
       this.CHR[i] = this._loadChunk(data, 0x1000, offset);
       offset += 0x1000;
-    }
+    }*/
 
 
-    callback(null, this.data = data);
+    let offset = 16;
+    this.PRG = this._loadChunk(this.data, this.PRGBanks * 0x4000, offset);
+
+    //console.log(this.PRG[this.PRG.length-1]);
+
+    offset += this.PRGBanks * 0x4000;
+    this.CHR = this._loadChunk(this.data, this.CHRBanks * 0x2000, offset);
+
 
   }
 
@@ -148,6 +161,16 @@ class ROM {
       name: this.mapperName[this.mapperId],
       id: this.mapperId
     };
+  }
+
+  get mapper() {
+    let mapper = new Mapper[this.mapperId](this.NES);
+
+    if(typeof mapper !== undefined)
+      return mapper;
+
+    return null;
+
   }
 
 }

@@ -7,8 +7,8 @@ class NES {
 
   constructor(options) {
 
-    this.CPU      = new CPU(this);
-    this.Memory   = new Memory(0x10000);
+    this.CPU      = null;
+    this.MMAP     = null;
     this.ROM      = null;
 
     this.frameInterval    = null;
@@ -34,55 +34,49 @@ class NES {
     };
   }
 
-  loadROM(path) {
+  loadROMData(data) {
+    this.ROM.load(data);
+    this.MMAP = this.ROM.mapper;
+    this.CPU = new CPU(this);
+    this.ready = false;
+  }
+
+  loadROM(path, callback) { //Should probably be moved to main file...
     this.ROM = new ROM(this);
     var self = this;
 
-    var promise = new Promise(function(resolve, reject) {
+    if(process.browser) {
 
-      function loadROMData() {
-        var data = arguments[arguments.length-1]; //Get data from last argument
-        self.ROM.load(data, function(err, ROM) {
-
-          if (err) {
-              self.fail(err);
-              reject(err);
-
-          } else {
-
-            resolve(ROM);
-
-          }
-
-        });
-      }
+      // Load using ajax.
+      let xhr = require("xhr2");
 
 
-      if(process.browser) {
 
-        // Load using ajax.
-        var xhr = require("xhr");
-        xhr({uri: path}, loadROMData);
+      let romrequest = new xhr();
 
+      romrequest.onload = function() {
+        self.loadROMData(romrequest.response);
+        callback(null, self);
+      };
 
-      } else {
-        // Load via fs module
-        var fs = require("fs");
-        fs.readFile(path, "utf8", loadROMData);
-
-      }
+      romrequest.open("GET", path, true);
+      romrequest.overrideMimeType("text/plain; charset=x-user-defined");
+      romrequest.send();
 
 
-    });
 
-    return promise;
+    } else {
+      // TODO Load via fs module.
+
+      this.fail("Can not load ROM - not implemented yet.");
+
+    }
 
   }
 
   reset() {
 
     this.CPU.reset();
-    this.Memory.reset();
 
   }
 
@@ -101,20 +95,6 @@ class NES {
   }
 
   frame() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
   }

@@ -5,19 +5,14 @@ let NES = require("./src/nes");
 
   let myNES = new NES;
 
-  if(process.browser) {
-    window.nes = myNES;
-  }
 
-  myNES.loadROM("test.nes").then(function() {
 
-    console.log(myNES);
-    //myNES.start();
-
-  }).catch(function(err) {
-    console.log("Something went wrong...")
+  myNES.loadROM("smb.nes", function(err, nes) {
+    if(process.browser) {
+      window.nes = nes;
+      console.log(nes);
+    }
   });
-
 
 
 })();

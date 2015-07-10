@@ -27,5 +27,8 @@
   "homepage": "https://github.com/ande765a/node-nes#readme",
   "devDependencies": {
     "xhr": "^2.0.2"
+  },
+  "dependencies": {
+    "xhr2": "^0.1.2"
   }
 }
