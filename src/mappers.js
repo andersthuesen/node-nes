@@ -98,7 +98,7 @@ class Mapper {
   }
 
   getRAMIndex(address) {
-    
+
   }
 
 
@@ -137,6 +137,14 @@ class Mapper {
 
   read16(address) {
     return (this.read(address+1) << 8) | this.read(address);
+  }
+
+  read16bug(address) {
+    let a = address;
+    let b = (a & 0xFF00) | (a+1);
+    let lo = this.read(a);
+    let hi = this.read(b);
+    return (hi << 8) | lo;
   }
 
   write(address, value) {

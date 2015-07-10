@@ -91,7 +91,8 @@ class CPU {
       php: function() { },
       plp: function() { },
       stx: function() { },
-      sty: function() { }
+      sty: function() { },
+      slo: function() { }
 
     };
 
@@ -145,6 +146,42 @@ class CPU {
       op.inx, op.sbc, op.nop, op.sbc, op.cpx, op.sbc, op.inc, op.isc,
       op.beq, op.sbc, op.kil, op.isc, op.nop, op.sbc, op.inc, op.isc,
       op.sed, op.sbc, op.nop, op.isc, op.nop, op.sbc, op.inc, op.isc
+
+    ];
+    this.instructionsNames = [
+
+      "brk", "ora", "kil", "slo", "nop", "ora", "asl", "slo",
+      "php", "ora", "asl", "anc", "nop", "ora", "asl", "slo",
+      "bpl", "ora", "kil", "slo", "nop", "ora", "asl", "slo",
+      "clc", "ora", "nop", "slo", "nop", "ora", "asl", "slo",
+      "jsr", "und", "kil", "rla", "bit", "und", "rol", "rla",
+      "plp", "und", "rol", "anc", "bit", "und", "rol", "rla",
+      "bmi", "und", "kil", "rla", "nop", "und", "rol", "rla",
+      "sec", "und", "nop", "rla", "nop", "und", "rol", "rla",
+      "rti", "eor", "kil", "sre", "nop", "eor", "lsr", "sre",
+      "pha", "eor", "lsr", "alr", "jmp", "eor", "lsr", "sre",
+      "bvc", "eor", "kil", "sre", "nop", "eor", "lsr", "sre",
+      "cli", "eor", "nop", "sre", "nop", "eor", "lsr", "sre",
+      "rts", "adc", "kil", "rra", "nop", "adc", "ror", "rra",
+      "pla", "adc", "ror", "arr", "jmp", "adc", "ror", "rra",
+      "bvs", "adc", "kil", "rra", "nop", "adc", "ror", "rra",
+      "sei", "adc", "nop", "rra", "nop", "adc", "ror", "rra",
+      "nop", "sta", "nop", "sax", "sty", "sta", "stx", "sax",
+      "dey", "nop", "txa", "xaa", "sty", "sta", "stx", "sax",
+      "bcc", "sta", "kil", "ahx", "sty", "sta", "stx", "sax",
+      "tya", "sta", "txs", "tas", "shy", "sta", "shx", "ahx",
+      "ldy", "lda", "ldx", "lax", "ldy", "lda", "ldx", "lax",
+      "tay", "lda", "tax", "lax", "ldy", "lda", "ldx", "lax",
+      "bcs", "lda", "kil", "lax", "ldy", "lda", "ldx", "lax",
+      "clv", "lda", "tsx", "las", "ldy", "lda", "ldx", "lax",
+      "cpy", "cmp", "nop", "dcp", "cpy", "cmp", "dec", "dcp",
+      "iny", "cmp", "dex", "axs", "cpy", "cmp", "dec", "dcp",
+      "bne", "cmp", "kil", "dcp", "nop", "cmp", "dec", "dcp",
+      "cld", "cmp", "nop", "dcp", "nop", "cmp", "dec", "dcp",
+      "cpx", "sbc", "nop", "isc", "cpx", "sbc", "inc", "isc",
+      "inx", "sbc", "nop", "sbc", "cpx", "sbc", "inc", "isc",
+      "beq", "sbc", "kil", "isc", "nop", "sbc", "inc", "isc",
+      "sed", "sbc", "nop", "isc", "nop", "sbc", "inc", "isc"
 
     ];
 
@@ -230,6 +267,11 @@ class CPU {
 
     ];
 
+    this.haltCycles = null; //Numbers of cycles to halt
+    this.cycles     = null;
+    this.flags      = null; //CPU flags
+    this.registers  = null;
+    this.stepInfo   = null;
 
     /*
       TODO
@@ -239,16 +281,12 @@ class CPU {
 
     this.reset();
   }
-
-  emulate() { //Should run the instructions
-
-    //get opcode and increment program counter
-
-    this.registers.PC++; //Increment Program counter to move to next instruction
-  }
-
   reset() {
     let self = this;
+
+
+    this.haltCycles = 0; //Numbers of cycles to halt
+    this.cycles     = 0;
 
     this.flags = { //Sets the flags
 
@@ -263,11 +301,11 @@ class CPU {
 
     this.registers = {
       PC: this.NES.MMAP.read16(0xFFFC), // 16-bit Program Counter from reset vector
-      SP: 0x00,  // Stack pointer
+      SP: 0xFD,  // Stack pointer
       A:  0x00,   // Accumulator (used in arithmetic)
       X:  0x00,   // X register
       Y:  0x00,   // Y register
-      P:  0x00,   /* Processor flags (from least significant bit)
+      P:  0x24,   /* Processor flags (from least significant bit)
                    *  (Carry, Zero, op.Interrupt disable, op.Decimal mode, op.Break, op.Overflow, op.Negative)
                    */
 
@@ -299,6 +337,124 @@ class CPU {
 
     };
   }
+
+  pagesDiffer(a, b) { // Checks if the two addresses references different pages
+    return (a & 0xFF00) !== (a & 0xFF00);
+  }
+
+  getAddress(mode) { // Finds addressmode and returns address
+
+    let cpu         = this; //Lets create some shortcuts.
+      cpu.read      = function(addr) { return cpu.MMAP.read(addr) };
+      cpu.read16    = function(addr) { return cpu.MMAP.read16(addr) };
+      cpu.read16bug = function(addr) { return cpu.MMAP.read16bug(addr) };
+      cpu.write     = function(addr, val) { return cpu.MMAP.write(addr, val) };
+      cpu.write16   = function(addr, val) { return cpu.MMAP.write16(addr, val) };
+
+    let modes     = cpu.addressingMode;
+    let pageCross = false;
+    let address   = null;
+
+    switch(mode) { // Get address in comparison with addressing mode.
+
+      case modes.absolute:
+        address = cpu.read16(cpu.registers.PC + 1);
+        break;
+      case modes.absoluteX:
+        address = cpu.read16(cpu.registers.PC + 1) + cpu.registers.X;
+        pageCross = cpu.pagesDiffer(address - cpu.registers.X, address);
+        break;
+      case modes.absoluteY:
+        address = cpu.read16(cpu.registers.PC + 1) + cpu.registers.Y;
+        pageCross = cpu.pagesDiffer(address - cpu.registers.Y, address);
+        break;
+      case modes.accumulator:
+        address = 0;
+        break;
+      case modes.immediate:
+        address = cpu.registers.PC + 1;
+        break;
+      case modes.implied:
+        address = 0;
+        break;
+      case modes.indexedIndirect:
+        address = cpu.read16bug(cpu.read(cpu.registers.PC+1) + cpu.registers.X);
+        break;
+      case modes.indirect:
+        address = cpu.read16bug(cpu.read16(cpu.registers.PC + 1));
+        break;
+      case modes.indirectIndexed:
+        address = cpu.read16bug(cpu.read(cpu.registers.PC+1)) + cpu.registers.Y;
+        pageCross = cpu.pagesDiffer(address - cpu.registers.Y, address);
+        break;
+      case modes.relative:
+        let offset = cpu.read(cpu.registers.PC+1);
+        if(offset < 0x80) {
+          address = cpu.registers.PC + 2 + offset;
+        } else {
+          address = cpu.registers.PC + 2 + offset - 0x100;
+        }
+        break;
+      case modes.zeroPage:
+        address = cpu.read(cpu.registers.PC + 1);
+        break;
+      case modes.zeroPageX:
+        address = cpu.read(cpu.registers.PC + 1) + cpu.registers.X;
+        break;
+      case modes.zeroPageY:
+        address = cpu.read(cpu.registers.PC + 1) + cpu.registers.Y;
+        break;
+      default:
+        this.NES.fail("Invalid addressing mode.");
+        break;
+    }
+
+    if(pageCross) { // Add extra cycles for opcode.
+      cpu.cycles += cpu.instructionPageCycles[opcode];
+    }
+
+    return address;
+
+
+  }
+
+  step() { //Should run the next instructions
+
+    if (this.haltCycles > 0) {
+      this.haltCycles--;
+      return;
+    }
+
+    let cpu       = this;
+    let cycles    = cpu.cycles;
+    let opcode    = this.MMAP.read(cpu.registers.PC);
+    let mode      = cpu.instructionModes[opcode];
+    let info      = null;
+    let address   = cpu.getAddress(mode);
+
+
+    info = {
+      address: address,
+      pc: cpu.registers.PC,
+      registers: cpu.registers,
+      mode: mode
+    };
+
+    cpu.cycles        += cpu.instructionCycles[opcode]; // Increase cycles for given operation
+    this.registers.PC += this.instructionSizes[opcode];
+
+    // Execute instruction
+    let instruction = cpu.instructions[opcode];
+    if(typeof instruction == undefined) {
+      this.NES.fail("Illegal instruction:", cpu.instructionsNames[opcode].toUpperCase());
+      return 0;
+    }
+
+    instruction(info);
+    return (cpu.cycles - cycles);
+
+  }
+
 
 }
 
