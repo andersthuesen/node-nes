@@ -101,6 +101,10 @@ class Mapper {
 
   }
 
+  step() {
+
+  }
+
 
   read(address) {
 
@@ -174,7 +178,7 @@ class Mapper {
         break;
 
       default:
-        this.NES.fail(`Unhandled mapper read at ${address.toString(16)}`);
+        this.NES.fail(`Unhandled mapper write at ${address.toString(16)}`);
         break;
 
     }

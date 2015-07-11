@@ -68,7 +68,7 @@ class ROM {
 
   }
 
-  reload() {
+  reset() {
 
     this.load(this.data);
 
@@ -147,8 +147,6 @@ class ROM {
 
     let offset = 16;
     this.PRG = this._loadChunk(this.data, this.PRGBanks * 0x4000, offset);
-
-    //console.log(this.PRG[this.PRG.length-1]);
 
     offset += this.PRGBanks * 0x4000;
     this.CHR = this._loadChunk(this.data, this.CHRBanks * 0x2000, offset);

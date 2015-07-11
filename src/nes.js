@@ -1,7 +1,9 @@
 "use strict";
-var CPU     = require("./cpu");
-var Memory  = require("./memory");
-var ROM     = require("./rom");
+let CPU     = require("./cpu");
+let Memory  = require("./memory");
+let ROM     = require("./rom");
+let PPU     = require("./ppu");
+let APU     = require("./apu");
 
 class NES {
 
@@ -9,7 +11,9 @@ class NES {
 
     this.CPU      = null;
     this.MMAP     = null;
-    this.ROM      = null;
+    this.ROM      = new ROM(this);
+    this.PPU      = new PPU(this);
+    this.APU      = new APU(this);
 
     this.frameInterval    = null;
     this.running  = false;
@@ -34,49 +38,20 @@ class NES {
     };
   }
 
-  loadROMData(data) {
+  loadROM(data) {
     this.ROM.load(data);
     this.MMAP = this.ROM.mapper;
     this.CPU = new CPU(this);
     this.ready = false;
   }
 
-  loadROM(path, callback) { //Should probably be moved to main file...
-    this.ROM = new ROM(this);
-    var self = this;
-
-    if(process.browser) {
-
-      // Load using ajax.
-      let xhr = require("xhr2");
-
-
-
-      let romrequest = new xhr();
-
-      romrequest.onload = function() {
-        self.loadROMData(romrequest.response);
-        callback(null, self);
-      };
-
-      romrequest.open("GET", path, true);
-      romrequest.overrideMimeType("text/plain; charset=x-user-defined");
-      romrequest.send();
-
-
-
-    } else {
-      // TODO Load via fs module.
-
-      this.fail("Can not load ROM - not implemented yet.");
-
-    }
-
-  }
-
-  reset() {
+  reset() { // Reset all the things!
 
     this.CPU.reset();
+    this.APU.reset();
+    this.PPU.reset();
+    this.MMAP.reset();
+    this.ROM.reset();
 
   }
 
@@ -96,6 +71,22 @@ class NES {
 
   frame() {
 
+
+  }
+
+  step() {
+
+    let cpuCycles = this.CPU.step();
+    let ppuCycles = cpuCycles * 3;
+
+    for (let i = 0; i < ppuCycles; i++) {
+      this.PPU.step();
+      this.MMAP.step();
+    }
+
+    for (let i = 0; i < cpuCycles; i++) {
+
+    }
 
   }
 

@@ -1,5 +1,11 @@
+/*
+  APU
+
+  Creates the familiar NES sounds
+
+*/
 "use strict";
-class PPU { //Contains all graphics
+class APU {
 
   constructor(NES) {
     this.NES = NES;
@@ -8,11 +14,10 @@ class PPU { //Contains all graphics
   step() {
 
   }
-
   reset() {
     
   }
 
 }
 
-module.exports = PPU;
+module.exports = APU;
