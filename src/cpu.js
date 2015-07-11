@@ -10,23 +10,31 @@ class CPU {
 
   constructor(NES) {
 
-    this.NES = NES; //Sets reference to NES
+    this.NES  = NES; //Sets reference to NES
     this.MMAP = NES.MMAP;
+    let cpu   = this;
 
 
     this.stack = {
 
-      push: function(data) {
-
+      push: function(value) {
+        cpu.MMAP.write(0x100 | cpu.registers.SP, value & 0xFF);
+        cpu.registers.SP--;
       },
       pull: function() {
-
+        cpu.registers.SP++;
+        return cpu.MMAP.read(0x100 | cpu.registers.SP);
       },
-      push16: function(data) {
-
+      push16: function(value) {
+        let hi = value >> 8 & 0xFF;
+        let lo = value & 0xFF;
+        this.push(hi);
+        this.push(lo);
       },
       pull16: function() {
-
+        let lo = this.pull();
+        let hi = this.pull();
+        return hi<<8 | lo;
       }
 
     };
@@ -34,19 +42,114 @@ class CPU {
     // http://www.6502.org/tutorials/6502opcodes.html
     let op = this.op = {
 
-      adc: function() { },
-      and: function() { },
-      asl: function() { },
-      bit: function() { },
-      bpl: function() { },
-      bmi: function() { },
-      bvc: function() { },
-      bvs: function() { },
-      bcc: function() { },
-      bcs: function() { },
-      bne: function() { },
-      beq: function() { },
-      brk: function() { },
+      adc: function(info) { // Add with Carry
+
+        let A = cpu.registers.A;
+        let M = cpu.MMAP.read(info.address);
+        let C = cpu.flags.CARRY;
+        cpu.registers.A = (A + M + C) & 0xFF;
+        cpu._setZN(cpu.registers.A);
+        cpu.flags.CARRY = (A + M + C > 0xFF) ? 1 : 0;
+        cpu.flags.OVERFLOW = ((A^M) & 0x80 == 0 && (A^cpu.registers.A) & 0x80 !== 0) ? 1 : 0;
+
+      },
+      and: function(info) { // Logical AND
+
+        cpu.registers.A = cpu.registers.A & cpu.MMAP.read(info.address) & 0xFF;
+        cpu._setZN(cpu.registers.A);
+
+      },
+      asl: function(info) { // Arithmetic Shift Left
+
+        if(info.mode == cpu.addressingMode.accumulator) {
+
+          cpu.registers.CARRY = (cpu.registers.A >> 7) & 1;
+          cpu.registers.A = cpu.registers.A << 1 & 0xFF;
+          cpu._setZN(cpu.registers.A);
+
+        } else {
+
+          let value = cpu.MMAP.read(info.address);
+          cpu.flags.CARRY = (value >> 7) & 1;
+          value = value << 7 & 0xFF;
+          cpu.MMAP.write(info.address, value);
+          cpu._setZN(value);
+
+        }
+
+      },
+      bit: function(info) { // Bit test
+
+        let value = cpu.MMAP.read(info.address);
+        cpu.registers.OVERFLOW = (value >> 6) & 1;
+        cpu._setZ(value & cpu.registers.A);
+        cpu._setN(value);
+
+      },
+      bpl: function(info) { // Branch if Positive
+        if(cpu.flags.NEGATIVE == 0) {
+          cpu.registers.PC = info.address;
+          cpu._addBranchCycles(info);
+        }
+      },
+      bmi: function(info) { // Branch if minus
+
+        if(cpu.flags.NEGATIVE !== 0) {
+          cpu.registers.PC = info.address;
+          cpu._addBranchCycles(info);
+        }
+
+      },
+      bvc: function(info) { // Branch if Overflow Clear
+
+        if(cpu.flags.OVERFLOW == 0) {
+          cpu.registers.PC = info.address;
+          cpu._addBranchCycles(info);
+        }
+
+      },
+      bvs: function(info) { // Branch if Overflow Set
+
+        if(cpu.flags.OVERFLOW !== 0) {
+          cpu.registers.PC = info.address;
+          cpu._addBranchCycles(info);
+        }
+
+      },
+      bcc: function(info) {
+
+        if(cpu.flags.CARRY == 0) {
+          cpu.registers.PC = info.address;
+          cpu._addBranchCycles(info);
+        }
+
+      },
+      bcs: function(info) {
+        if(cpu.flags.CARRY !== 0) {
+          cpu.registers.PC = info.address;
+          cpu._addBranchCycles(info);
+        }
+      },
+      bne: function(info) { // Branch if Not Equal
+        if(cpu.flags.ZERO == 0) {
+          cpu.registers.PC = info.address;
+          cpu._addBranchCycles(info);
+        }
+      },
+      beq: function(info) {
+
+        if(cpu.flags.ZERO !== 0) {
+          cpu.registers.PC = info.address;
+          cpu._addBranchCycles(info);
+        }
+
+      },
+      brk: function(info) {
+        cpu.stack.push16(cpu.registers.PC);
+        this.php(info);
+        this.sei(info);
+        cpu.registers.PC = cpu.MMAP.read16(0xFFFE);
+      },
       cmp: function() { },
       cpx: function() { },
       cpy: function() { },
@@ -281,6 +384,112 @@ class CPU {
 
     this.reset();
   }
+
+  _setZ(value) { // Sets Zero registers if value is zero
+    let flag = (value == 0 ? 1: 0);
+    this.NES.log(`Settings Zero flag to ${flag}`);
+    this.registers.Zero = flag;
+  }
+
+  _setN(value) {
+    let flag = (value & 0x80 !== 0 ? 1 : 0);
+    this.NES.log(`Settings Negative flag to ${flag}`);
+    this.registers.Negative = flag;
+  }
+
+  _setZN(value) {
+    this._setZ(value);
+    this._setN(value);
+  }
+
+  _addBranchCycles(info) {
+
+    this.cycles++;
+    if(this._pagesDiffer(info.pc, info.address)) {
+      this.cycles++;
+    }
+
+  }
+  _pagesDiffer(a, b) { // Checks if the two addresses references different pages
+    return (a & 0xFF00) !== (a & 0xFF00);
+  }
+
+  _getAddress(mode) { // Finds addressmode and returns address
+
+    let cpu         = this; //Lets create some shortcuts.
+      cpu.read      = function(addr) { return cpu.MMAP.read(addr) };
+      cpu.read16    = function(addr) { return cpu.MMAP.read16(addr) };
+      cpu.read16bug = function(addr) { return cpu.MMAP.read16bug(addr) };
+      cpu.write     = function(addr, val) { return cpu.MMAP.write(addr, val) };
+      cpu.write16   = function(addr, val) { return cpu.MMAP.write16(addr, val) };
+
+    let modes     = cpu.addressingMode;
+    let pageCross = false;
+    let address   = null;
+
+    switch(mode) { // Get address in comparison with addressing mode.
+
+      case modes.absolute:
+        address = cpu.read16(cpu.registers.PC + 1);
+        break;
+      case modes.absoluteX:
+        address = cpu.read16(cpu.registers.PC + 1) + cpu.registers.X;
+        pageCross = cpu._pagesDiffer(address - cpu.registers.X, address);
+        break;
+      case modes.absoluteY:
+        address = cpu.read16(cpu.registers.PC + 1) + cpu.registers.Y;
+        pageCross = cpu._pagesDiffer(address - cpu.registers.Y, address);
+        break;
+      case modes.accumulator:
+        address = 0;
+        break;
+      case modes.immediate:
+        address = cpu.registers.PC + 1;
+        break;
+      case modes.implied:
+        address = 0;
+        break;
+      case modes.indexedIndirect:
+        address = cpu.read16bug(cpu.read(cpu.registers.PC+1) + cpu.registers.X);
+        break;
+      case modes.indirect:
+        address = cpu.read16bug(cpu.read16(cpu.registers.PC + 1));
+        break;
+      case modes.indirectIndexed:
+        address = cpu.read16bug(cpu.read(cpu.registers.PC+1)) + cpu.registers.Y;
+        pageCross = cpu._pagesDiffer(address - cpu.registers.Y, address);
+        break;
+      case modes.relative:
+        let offset = cpu.read(cpu.registers.PC+1);
+        if(offset < 0x80) {
+          address = cpu.registers.PC + 2 + offset;
+        } else {
+          address = cpu.registers.PC + 2 + offset - 0x100;
+        }
+        break;
+      case modes.zeroPage:
+        address = cpu.read(cpu.registers.PC + 1);
+        break;
+      case modes.zeroPageX:
+        address = cpu.read(cpu.registers.PC + 1) + cpu.registers.X;
+        break;
+      case modes.zeroPageY:
+        address = cpu.read(cpu.registers.PC + 1) + cpu.registers.Y;
+        break;
+      default:
+        this.NES.fail("Invalid addressing mode.");
+        break;
+    }
+
+    if(pageCross) { // Add extra cycles for opcode.
+      cpu.cycles += cpu.instructionPageCycles[opcode];
+    }
+
+    return address;
+
+
+  }
+
   reset() {
     let self = this;
 
@@ -338,85 +547,7 @@ class CPU {
     };
   }
 
-  pagesDiffer(a, b) { // Checks if the two addresses references different pages
-    return (a & 0xFF00) !== (a & 0xFF00);
-  }
 
-  getAddress(mode) { // Finds addressmode and returns address
-
-    let cpu         = this; //Lets create some shortcuts.
-      cpu.read      = function(addr) { return cpu.MMAP.read(addr) };
-      cpu.read16    = function(addr) { return cpu.MMAP.read16(addr) };
-      cpu.read16bug = function(addr) { return cpu.MMAP.read16bug(addr) };
-      cpu.write     = function(addr, val) { return cpu.MMAP.write(addr, val) };
-      cpu.write16   = function(addr, val) { return cpu.MMAP.write16(addr, val) };
-
-    let modes     = cpu.addressingMode;
-    let pageCross = false;
-    let address   = null;
-
-    switch(mode) { // Get address in comparison with addressing mode.
-
-      case modes.absolute:
-        address = cpu.read16(cpu.registers.PC + 1);
-        break;
-      case modes.absoluteX:
-        address = cpu.read16(cpu.registers.PC + 1) + cpu.registers.X;
-        pageCross = cpu.pagesDiffer(address - cpu.registers.X, address);
-        break;
-      case modes.absoluteY:
-        address = cpu.read16(cpu.registers.PC + 1) + cpu.registers.Y;
-        pageCross = cpu.pagesDiffer(address - cpu.registers.Y, address);
-        break;
-      case modes.accumulator:
-        address = 0;
-        break;
-      case modes.immediate:
-        address = cpu.registers.PC + 1;
-        break;
-      case modes.implied:
-        address = 0;
-        break;
-      case modes.indexedIndirect:
-        address = cpu.read16bug(cpu.read(cpu.registers.PC+1) + cpu.registers.X);
-        break;
-      case modes.indirect:
-        address = cpu.read16bug(cpu.read16(cpu.registers.PC + 1));
-        break;
-      case modes.indirectIndexed:
-        address = cpu.read16bug(cpu.read(cpu.registers.PC+1)) + cpu.registers.Y;
-        pageCross = cpu.pagesDiffer(address - cpu.registers.Y, address);
-        break;
-      case modes.relative:
-        let offset = cpu.read(cpu.registers.PC+1);
-        if(offset < 0x80) {
-          address = cpu.registers.PC + 2 + offset;
-        } else {
-          address = cpu.registers.PC + 2 + offset - 0x100;
-        }
-        break;
-      case modes.zeroPage:
-        address = cpu.read(cpu.registers.PC + 1);
-        break;
-      case modes.zeroPageX:
-        address = cpu.read(cpu.registers.PC + 1) + cpu.registers.X;
-        break;
-      case modes.zeroPageY:
-        address = cpu.read(cpu.registers.PC + 1) + cpu.registers.Y;
-        break;
-      default:
-        this.NES.fail("Invalid addressing mode.");
-        break;
-    }
-
-    if(pageCross) { // Add extra cycles for opcode.
-      cpu.cycles += cpu.instructionPageCycles[opcode];
-    }
-
-    return address;
-
-
-  }
 
   step() { //Should run the next instructions
 
@@ -430,7 +561,7 @@ class CPU {
     let opcode    = this.MMAP.read(cpu.registers.PC);
     let mode      = cpu.instructionModes[opcode];
     let info      = null;
-    let address   = cpu.getAddress(mode);
+    let address   = cpu._getAddress(mode);
 
 
     info = {
@@ -449,6 +580,9 @@ class CPU {
       this.NES.fail("Illegal instruction:", cpu.instructionsNames[opcode].toUpperCase());
       return 0;
     }
+
+    this.NES.log(`Flags: ${this.registers.P.toString(2)}`);
+    this.NES.log(`Executing instruction ${cpu.instructionsNames[opcode].toUpperCase()} with address mode ${mode}`);
 
     instruction(info);
     return (cpu.cycles - cycles);

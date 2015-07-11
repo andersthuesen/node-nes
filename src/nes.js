@@ -15,6 +15,8 @@ class NES {
     this.PPU      = new PPU(this);
     this.APU      = new APU(this);
 
+    this.debug    = true;
+
     this.frameInterval    = null;
     this.running  = false;
     this.paused   = false;
@@ -71,6 +73,17 @@ class NES {
 
   frame() {
 
+    this.step();
+
+  }
+
+  log(message) {
+
+    if(this.debug) {
+
+      console.log(`Node-NES: ${message}`);
+
+    }
 
   }
 
@@ -85,8 +98,9 @@ class NES {
     }
 
     for (let i = 0; i < cpuCycles; i++) {
-
+      this.APU.step();
     }
+    return cpuCycles;
 
   }
 

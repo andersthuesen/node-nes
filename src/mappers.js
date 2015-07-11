@@ -90,7 +90,6 @@ class Mapper {
 
   getCHRIndex(address) {
 
-    address -= 0x2000;
     let bank = parseInt(address / 0x1000);
     let offset = address % 0x1000;
     return offset + this.offsets.CHR[bank];
@@ -114,8 +113,11 @@ class Mapper {
 
       case (address < 0x2000): { // If reading CHR
 
+
         let index = this.getCHRIndex(address);
-        return this.ROM.CHR[index];
+        let value = this.ROM.CHR[index]
+        this.NES.log(`Reading: 0x${value.toString(16).toUpperCase()} from CHR at address: 0x${address.toString(16).toUpperCase()}`);
+        return value;
         break;
 
       }
@@ -159,6 +161,11 @@ class Mapper {
     switch(true) {
 
       case (address < 0x2000): { // If reading CHR
+
+        this.NES.log(`
+        Writing value: 0x${value.toString(16).toUpperCase}
+        to CHR at address: 0x${address.toString(16).toUpperCase()}`
+        );
 
         let index = this.getCHRIndex(address);
         this.ROM.CHR[index] = value;
