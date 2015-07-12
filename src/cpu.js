@@ -44,28 +44,28 @@ class CPU {
 
       adc: function(info) { // Add with Carry
 
-        let A = cpu.registers.A;
+        let A = cpu.A;
         let M = cpu.MMAP.read(info.address);
         let C = cpu.flags.CARRY;
-        cpu.registers.A = (A + M + C) & 0xFF;
-        cpu._setZN(cpu.registers.A);
+        cpu.A = (A + M + C);
+        cpu._setZN(cpu.A);
         cpu.flags.CARRY = (A + M + C > 0xFF) ? 1 : 0;
-        cpu.flags.OVERFLOW = ((A^M) & 0x80 == 0 && (A^cpu.registers.A) & 0x80 !== 0) ? 1 : 0;
+        cpu.flags.OVERFLOW = ((A^M) & 0x80 == 0 && (A^cpu.A) & 0x80 !== 0) ? 1 : 0;
 
       },
       and: function(info) { // Logical AND
 
-        cpu.registers.A = cpu.registers.A & cpu.MMAP.read(info.address) & 0xFF;
-        cpu._setZN(cpu.registers.A);
+        cpu.A = cpu.A & cpu.MMAP.read(info.address);
+        cpu._setZN(cpu.A);
 
       },
       asl: function(info) { // Arithmetic Shift Left
 
         if(info.mode == cpu.addressingMode.accumulator) {
 
-          cpu.registers.CARRY = (cpu.registers.A >> 7) & 1;
-          cpu.registers.A = cpu.registers.A << 1 & 0xFF;
-          cpu._setZN(cpu.registers.A);
+          cpu.flags.CARRY = (cpu.A >> 7) & 1;
+          cpu.A = cpu.A << 1;
+          cpu._setZN(cpu.A);
 
         } else {
 
@@ -82,20 +82,20 @@ class CPU {
 
         let value = cpu.MMAP.read(info.address);
         cpu.registers.OVERFLOW = (value >> 6) & 1;
-        cpu._setZ(value & cpu.registers.A);
+        cpu._setZ(value & cpu.A);
         cpu._setN(value);
 
       },
       bpl: function(info) { // Branch if Positive
         if(cpu.flags.NEGATIVE == 0) {
-          cpu.registers.PC = info.address;
+          cpu.PC = info.address;
           cpu._addBranchCycles(info);
         }
       },
       bmi: function(info) { // Branch if minus
 
         if(cpu.flags.NEGATIVE !== 0) {
-          cpu.registers.PC = info.address;
+          cpu.PC = info.address;
           cpu._addBranchCycles(info);
         }
 
@@ -103,7 +103,7 @@ class CPU {
       bvc: function(info) { // Branch if Overflow Clear
 
         if(cpu.flags.OVERFLOW == 0) {
-          cpu.registers.PC = info.address;
+          cpu.PC = info.address;
           cpu._addBranchCycles(info);
         }
 
@@ -111,7 +111,7 @@ class CPU {
       bvs: function(info) { // Branch if Overflow Set
 
         if(cpu.flags.OVERFLOW !== 0) {
-          cpu.registers.PC = info.address;
+          cpu.PC = info.address;
           cpu._addBranchCycles(info);
         }
 
@@ -119,83 +119,263 @@ class CPU {
       bcc: function(info) {
 
         if(cpu.flags.CARRY == 0) {
-          cpu.registers.PC = info.address;
+          cpu.PC = info.address;
           cpu._addBranchCycles(info);
         }
 
       },
       bcs: function(info) {
         if(cpu.flags.CARRY !== 0) {
-          cpu.registers.PC = info.address;
+          cpu.PC = info.address;
           cpu._addBranchCycles(info);
         }
       },
       bne: function(info) { // Branch if Not Equal
         if(cpu.flags.ZERO == 0) {
-          cpu.registers.PC = info.address;
+          cpu.PC = info.address;
           cpu._addBranchCycles(info);
         }
       },
       beq: function(info) {
 
         if(cpu.flags.ZERO !== 0) {
-          cpu.registers.PC = info.address;
+          cpu.PC = info.address;
           cpu._addBranchCycles(info);
         }
 
       },
       brk: function(info) {
-        cpu.stack.push16(cpu.registers.PC);
+        cpu.stack.push16(cpu.PC);
         this.php(info);
         this.sei(info);
-        cpu.registers.PC = cpu.MMAP.read16(0xFFFE);
+        cpu.PC = cpu.MMAP.read16(0xFFFE);
       },
-      cmp: function() { },
-      cpx: function() { },
-      cpy: function() { },
-      dec: function() { },
-      eor: function() { },
-      clc: function() { },
-      sec: function() { },
-      cli: function() { },
-      sei: function() { },
-      cli: function() { },
-      sei: function() { },
-      clv: function() { },
-      cld: function() { },
-      sed: function() { },
-      inc: function() { },
-      jmp: function() { },
-      jsr: function() { },
-      lda: function() { },
-      ldx: function() { },
-      ldy: function() { },
-      lsr: function() { },
-      nop: function() { },
-      ora: function() { },
-      tax: function() { },
-      txa: function() { },
-      dex: function() { },
-      inx: function() { },
-      tay: function() { },
-      tya: function() { },
-      dey: function() { },
-      iny: function() { },
-      rol: function() { },
-      ror: function() { },
-      rti: function() { },
-      rts: function() { },
-      sbc: function() { },
-      sta: function() { },
-      txs: function() { },
-      tsx: function() { },
-      pha: function() { },
-      pla: function() { },
-      php: function() { },
-      plp: function() { },
-      stx: function() { },
-      sty: function() { },
-      slo: function() { }
+
+      cli: function(info) {
+        cpu.flags.INTERRUPT = 0;
+      },
+      clv: function(info) {
+        cpu.flags.OVERFLOW = 0;
+      },
+      cld: function(info) {
+        cpu.flags.DECIMAL = 0;
+      },
+      clc: function(info) {
+        cpu.flags.CARRY = 0;
+      },
+
+      cmp: function(info) {
+        let value = cpu.MMAP.read(info.address);
+        cpu._compare(cpu.A, value);
+      },
+      cpx: function(info) {
+        let value = cpu.MMAP.read(info.address);
+        cpu._compare(cpu.X, value);
+      },
+      cpy: function(info) {
+        let value = cpu.MMAP.read(info.address);
+        cpu._compare(cpu.Y, value);
+      },
+      dec: function(info) {
+        let value = cpu.MMAP.read(info.address) - 1;
+        cpu.MMAP.write(info.address, value);
+        cpu._setZN(value);
+      },
+      dex: function(info) {
+        cpu.X--;
+        cpu._setZN(cpu.X);
+      },
+      dey: function(info) {
+        cpu.Y--;
+        cpu._setZN(cpu.Y);
+      },
+      eor: function(info) {
+        cpu.A = cpu.A ^ cpu.MMAP.read(info.address);
+        cpu._setZN(cpu.A);
+      },
+      inx: function() {
+        cpu.X = cpu.X + 1 & 0xFF;
+        cpu._setZN(cpu.X);
+      },
+      iny: function() {
+        cpu.Y = cpu.Y + 1 & 0xFF;
+        cpu._setZN(cpu.Y);
+      },
+      jmp: function(info) {
+        cpu.PC = info.address;
+      },
+      jsr: function(info) {
+        cpu.stack.push16(cpu.PC - 1);
+        cpu.PC = info.address;
+      },
+      lda: function(info) {
+        cpu.A = cpu.MMAP.read(info.address);
+        cpu._setZN(cpu.A);
+      },
+      ldx: function(info) {
+        cpu.X = cpu.MMAP.read(info.address);
+        cpu._setZN(cpu.X);
+      },
+      ldy: function(info) {
+        cpu.Y = cpu.MMAP.read(info.address);
+        cpu._setZN(cpu.Y);
+      },
+
+      lsr: function(info) {
+
+        if(info.mode == cpu.addressingMode.accumulator) {
+          cpu.flags.CARRY = cpu.A & 1;
+          cpu.A = cpu.A >> 1;
+          cpu._setZN(cpu.A);
+
+        } else {
+
+          let value = cpu.MMAP.read(info.address);
+          cpu.flags.CARRY = value & 1;
+          value = value >> 1 & 0xFF;
+          cpu.MMAP.write(info.address, value);
+          cpu._setZN(value);
+
+        }
+
+      },
+      nop: function(info) {
+        cpu.NES.log(cpu.registers, cpu.flags, info);
+      },
+
+      ora: function(info) {
+        cpu.A = cpu.A | cpu.MMAP.read(info.address);
+        cpu._setZN(cpu.A);
+      },
+      pha: function(info) {
+        cpu.stack.push(cpu.A);
+      },
+      php: function(info) {
+        cpu.stack.push(cpu.registers.P | 0x10);
+      },
+      pla: function(info) {
+        cpu.A = cpu.stack.pull();
+        cpu._setZN(cpu.A);
+      },
+      plp: function(info) {
+        cpu.registers.P = cpu.stack.pull();
+      },
+      rol: function(info) {
+
+        if(info.mode = cpu.addressingMode.accumulator) {
+          cpu.flags.CARRY = (cpu.A >> 7) & 1;
+          cpu.A = (cpu.A << 1) | cpu.flags.CARRY;
+          cpu._setZN(cpu.A);
+        } else {
+          let value = cpu.MMAP.read(info.address);
+          cpu.flags.CARRY = (value << 7) & 1;
+          value = (value << 1) | cpu.flags.CARRY;
+          cpu.MMAP.write(info.address, value);
+          cpu._setZN(value);
+
+        }
+      },
+      ror: function(info) {
+        if(info.mode = cpu.addressingMode.accumulator) {
+          cpu.flags.CARRY = cpu.A & 1;
+          cpu.A = (cpu.A >> 1) | (cpu.flags.CARRY << 7);
+          cpu._setZN(cpu.A);
+        } else {
+          let value = cpu.MMAP.read(info.address);
+          cpu.flags.CARRY = value & 1;
+          value = (value >> 1) | (cpu.flags.CARRY << 7);
+          cpu.MMAP.write(info.address, value);
+          cpu._setZN(value);
+
+        }
+      },
+      rti: function(info) {
+        cpu.registers.P = cpu.stack.pull();
+        cpu.PC = cpu.stack.pull16();
+      },
+      rts: function(info) {
+        cpu.PC = cpu.stack.pull16() + 1;
+      },
+      sbc: function(info) {
+        let A = cpu.A;
+        let M = cpu.MMAP.read(info.address);
+        let C = cpu.flags.CARRY;
+        cpu.A = A - M - (1 - C);
+        cpu._setZN(cpu.A);
+        cpu.flags.CARRY = (A - M - (1 - C) >= 0) ? 1 : 0;
+        cpu.flags.OVERFLOW = ((A^M) & 0x80 !== 0 && (A^cpu.A) & 0x80 !== 0) ? 1 : 0;
+
+      },
+
+      sec: function(info) {
+        cpu.flags.CARRY = 1;
+      },
+      sei: function(info) {
+        cpu.flags.DECIMAL = 1;
+      },
+      sta: function(info) {
+        cpu.MMAP.write(info.address, cpu.A);
+      },
+      stx: function(info) {
+        cpu.MMAP.write(info.address, cpu.X);
+      },
+      sty: function(info) {
+        cpu.MMAP.write(info.address, cpu.Y);
+      },
+      tax: function(info) {
+        cpu.X = cpu.A;
+        cpu._setZN(cpu.X);
+      },
+      tay: function(info) {
+        cpu.Y = cpu.A;
+        cpu._setZN(cpu.Y);
+      },
+      tsx: function(info) {
+        cpu.X = cpu.SP;
+        cpu.setZN(cpu.X);
+      },
+
+      txa: function(info) {
+        cpu.A = cpu.X;
+        cpu._setZN(cpu.A);
+      },
+      txs: function(info) {
+        cpu.SP = cpu.X;
+      },
+      tya: function(info) {
+        cpu.A = cpu.Y;
+        cpu._setZN(cpu.A);
+      },
+
+      sed: function(info) {
+        cpu.flags.DECIMAL = 1;
+      },
+      inc: function(info) {
+        let value = cpu.MMAP.read(info.addres) + 1;
+        cpu.write(info.address, value);
+        cpu._setZN(value);
+      },
+      //Illegal instructions
+      ahx: function(info) { },
+      alr: function(info) { },
+      anc: function(info) { },
+      arr: function(info) { },
+      axs: function(info) { },
+      dcp: function(info) { },
+      isc: function(info) { },
+      kil: function(info) { },
+      las: function(info) { },
+      lax: function(info) { },
+      rla: function(info) { },
+      rra: function(info) { },
+      sax: function(info) { },
+      shx: function(info) { },
+      shy: function(info) { },
+      slo: function(info) { },
+      sre: function(info) { },
+      tas: function(info) { },
+      xaa: function(info) { }
+
 
     };
 
@@ -385,6 +565,36 @@ class CPU {
     this.reset();
   }
 
+  set A(value) {
+    return this.registers.A = value & 0xFF;
+  }
+  get A() {
+    return this.registers.A;
+  }
+
+  set X(value) {
+    return this.registers.X = value & 0xFF;
+  }
+  get X() {
+    return this.registers.X;
+  }
+
+  set Y(value) {
+    return this.registers.Y = value & 0xFF;
+  }
+  get Y() {
+    return this.registers.Y;
+  }
+
+  set SP(address) {
+    this.registers.SP = address & 0xFFFF;
+  }
+
+  get SP() {
+    return this.registers.SP;
+  }
+
+
   _setZ(value) { // Sets Zero registers if value is zero
     let flag = (value == 0 ? 1: 0);
     this.NES.log(`Settings Zero flag to ${flag}`);
@@ -412,6 +622,11 @@ class CPU {
   }
   _pagesDiffer(a, b) { // Checks if the two addresses references different pages
     return (a & 0xFF00) !== (a & 0xFF00);
+  }
+
+  _compare(a, b) {
+    this._setZN(a-b);
+    this.flags.CARRY = (a >= b ? 1 : 0);
   }
 
   _getAddress(mode) { // Finds addressmode and returns address

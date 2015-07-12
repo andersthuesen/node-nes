@@ -134,7 +134,7 @@ class Mapper {
         break;
 
       default:
-        this.NES.fail(`Unhandled mapper read at ${address.toString(16)}`);
+        this.NES.fail(`Unhandled mapper read at 0x${address.toString(16)}`);
         break;
 
     }
@@ -163,7 +163,7 @@ class Mapper {
       case (address < 0x2000): { // If reading CHR
 
         this.NES.log(`
-        Writing value: 0x${value.toString(16).toUpperCase}
+        Writing value: 0x${value.toString(16).toUpperCase()}
         to CHR at address: 0x${address.toString(16).toUpperCase()}`
         );
 
@@ -185,7 +185,7 @@ class Mapper {
         break;
 
       default:
-        this.NES.fail(`Unhandled mapper write at ${address.toString(16)}`);
+        this.NES.fail(`Unhandled mapper write at 0x${address.toString(16)}`);
         break;
 
     }
