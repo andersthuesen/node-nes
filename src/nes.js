@@ -14,6 +14,8 @@ class NES {
     this.ROM      = new ROM(this);
     this.PPU      = new PPU(this);
     this.APU      = new APU(this);
+    this.RAM      = new Memory(0x0800);
+    this.SRAM     = new Memory(0x2000);
 
     this.debug    = true;
 

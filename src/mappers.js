@@ -48,14 +48,12 @@
 */
 
 "use strict";
-var Memory = require("./memory");
 
 
 class Mapper {
 
   constructor(NES) {
     this.NES = NES;
-    this.MEM = new Memory;
     this.ROM = NES.ROM; //Shortcut
     this.offsets = {
       PRG: [0, 0, 0],
@@ -104,7 +102,6 @@ class Mapper {
 
   }
 
-
   read(address) {
 
     address &= 0xFFFF; //Wrap around
@@ -130,7 +127,7 @@ class Mapper {
       }
 
       case (address >= 0x6000): // If reading battery RAM
-        return this.MEM[address];
+        return this.NES.SRAM[address-0x6000];
         break;
 
       default:
@@ -139,18 +136,6 @@ class Mapper {
 
     }
 
-  }
-
-  read16(address) {
-    return (this.read(address+1) << 8) | this.read(address);
-  }
-
-  read16bug(address) {
-    let a = address;
-    let b = (a & 0xFF00) | (a+1);
-    let lo = this.read(a);
-    let hi = this.read(b);
-    return (hi << 8) | lo;
   }
 
   write(address, value) {
@@ -181,7 +166,7 @@ class Mapper {
       }
 
       case (address >= 0x6000): // If reading battery RAM
-        this.MEM[address] = value;
+        this.SRAM[address] = value;
         break;
 
       default:

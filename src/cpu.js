@@ -1,4 +1,6 @@
 "use strict";
+var Memory = require("./memory");
+
 
 /*
   Documentation:
@@ -18,12 +20,12 @@ class CPU {
     this.stack = {
 
       push: function(value) {
-        cpu.MMAP.write(0x100 | cpu.registers.SP, value & 0xFF);
+        cpu.write(0x100 | cpu.registers.SP, value & 0xFF);
         cpu.registers.SP--;
       },
       pull: function() {
         cpu.registers.SP++;
-        return cpu.MMAP.read(0x100 | cpu.registers.SP);
+        return cpu.read(0x100 | cpu.registers.SP);
       },
       push16: function(value) {
         let hi = value >> 8 & 0xFF;
@@ -45,7 +47,7 @@ class CPU {
       adc: function(info) { // Add with Carry
 
         let A = cpu.A;
-        let M = cpu.MMAP.read(info.address);
+        let M = cpu.read(info.address);
         let C = cpu.flags.CARRY;
         cpu.A = (A + M + C);
         cpu._setZN(cpu.A);
@@ -55,7 +57,7 @@ class CPU {
       },
       and: function(info) { // Logical AND
 
-        cpu.A = cpu.A & cpu.MMAP.read(info.address);
+        cpu.A = cpu.A & cpu.read(info.address);
         cpu._setZN(cpu.A);
 
       },
@@ -69,10 +71,10 @@ class CPU {
 
         } else {
 
-          let value = cpu.MMAP.read(info.address);
+          let value = cpu.read(info.address);
           cpu.flags.CARRY = (value >> 7) & 1;
           value = value << 7 & 0xFF;
-          cpu.MMAP.write(info.address, value);
+          cpu.write(info.address, value);
           cpu._setZN(value);
 
         }
@@ -80,7 +82,7 @@ class CPU {
       },
       bit: function(info) { // Bit test
 
-        let value = cpu.MMAP.read(info.address);
+        let value = cpu.read(info.address);
         cpu.registers.OVERFLOW = (value >> 6) & 1;
         cpu._setZ(value & cpu.A);
         cpu._setN(value);
@@ -145,10 +147,10 @@ class CPU {
 
       },
       brk: function(info) {
-        cpu.stack.push16(cpu.PC);
+        cpu.push16(cpu.PC);
         this.php(info);
         this.sei(info);
-        cpu.PC = cpu.MMAP.read16(0xFFFE);
+        cpu.PC = cpu.read16(0xFFFE);
       },
 
       cli: function(info) {
@@ -165,20 +167,20 @@ class CPU {
       },
 
       cmp: function(info) {
-        let value = cpu.MMAP.read(info.address);
+        let value = cpu.read(info.address);
         cpu._compare(cpu.A, value);
       },
       cpx: function(info) {
-        let value = cpu.MMAP.read(info.address);
+        let value = cpu.read(info.address);
         cpu._compare(cpu.X, value);
       },
       cpy: function(info) {
-        let value = cpu.MMAP.read(info.address);
+        let value = cpu.read(info.address);
         cpu._compare(cpu.Y, value);
       },
       dec: function(info) {
-        let value = cpu.MMAP.read(info.address) - 1;
-        cpu.MMAP.write(info.address, value);
+        let value = cpu.read(info.address) - 1;
+        cpu.write(info.address, value);
         cpu._setZN(value);
       },
       dex: function(info) {
@@ -190,7 +192,7 @@ class CPU {
         cpu._setZN(cpu.Y);
       },
       eor: function(info) {
-        cpu.A = cpu.A ^ cpu.MMAP.read(info.address);
+        cpu.A = cpu.A ^ cpu.read(info.address);
         cpu._setZN(cpu.A);
       },
       inx: function() {
@@ -205,19 +207,19 @@ class CPU {
         cpu.PC = info.address;
       },
       jsr: function(info) {
-        cpu.stack.push16(cpu.PC - 1);
+        cpu.push16(cpu.PC - 1);
         cpu.PC = info.address;
       },
       lda: function(info) {
-        cpu.A = cpu.MMAP.read(info.address);
+        cpu.A = cpu.read(info.address);
         cpu._setZN(cpu.A);
       },
       ldx: function(info) {
-        cpu.X = cpu.MMAP.read(info.address);
+        cpu.X = cpu.read(info.address);
         cpu._setZN(cpu.X);
       },
       ldy: function(info) {
-        cpu.Y = cpu.MMAP.read(info.address);
+        cpu.Y = cpu.read(info.address);
         cpu._setZN(cpu.Y);
       },
 
@@ -230,10 +232,10 @@ class CPU {
 
         } else {
 
-          let value = cpu.MMAP.read(info.address);
+          let value = cpu.read(info.address);
           cpu.flags.CARRY = value & 1;
           value = value >> 1 & 0xFF;
-          cpu.MMAP.write(info.address, value);
+          cpu.write(info.address, value);
           cpu._setZN(value);
 
         }
@@ -244,21 +246,21 @@ class CPU {
       },
 
       ora: function(info) {
-        cpu.A = cpu.A | cpu.MMAP.read(info.address);
+        cpu.A = cpu.A | cpu.read(info.address);
         cpu._setZN(cpu.A);
       },
       pha: function(info) {
-        cpu.stack.push(cpu.A);
+        cpu.push(cpu.A);
       },
       php: function(info) {
-        cpu.stack.push(cpu.registers.P | 0x10);
+        cpu.push(cpu.registers.P | 0x10);
       },
       pla: function(info) {
-        cpu.A = cpu.stack.pull();
+        cpu.A = cpu.pull();
         cpu._setZN(cpu.A);
       },
       plp: function(info) {
-        cpu.registers.P = cpu.stack.pull();
+        cpu.registers.P = cpu.pull();
       },
       rol: function(info) {
 
@@ -267,10 +269,10 @@ class CPU {
           cpu.A = (cpu.A << 1) | cpu.flags.CARRY;
           cpu._setZN(cpu.A);
         } else {
-          let value = cpu.MMAP.read(info.address);
+          let value = cpu.read(info.address);
           cpu.flags.CARRY = (value << 7) & 1;
           value = (value << 1) | cpu.flags.CARRY;
-          cpu.MMAP.write(info.address, value);
+          cpu.write(info.address, value);
           cpu._setZN(value);
 
         }
@@ -281,24 +283,24 @@ class CPU {
           cpu.A = (cpu.A >> 1) | (cpu.flags.CARRY << 7);
           cpu._setZN(cpu.A);
         } else {
-          let value = cpu.MMAP.read(info.address);
+          let value = cpu.read(info.address);
           cpu.flags.CARRY = value & 1;
           value = (value >> 1) | (cpu.flags.CARRY << 7);
-          cpu.MMAP.write(info.address, value);
+          cpu.write(info.address, value);
           cpu._setZN(value);
 
         }
       },
       rti: function(info) {
-        cpu.registers.P = cpu.stack.pull();
-        cpu.PC = cpu.stack.pull16();
+        cpu.registers.P = cpu.pull();
+        cpu.PC = cpu.pull16();
       },
       rts: function(info) {
-        cpu.PC = cpu.stack.pull16() + 1;
+        cpu.PC = cpu.pull16() + 1;
       },
       sbc: function(info) {
         let A = cpu.A;
-        let M = cpu.MMAP.read(info.address);
+        let M = cpu.read(info.address);
         let C = cpu.flags.CARRY;
         cpu.A = A - M - (1 - C);
         cpu._setZN(cpu.A);
@@ -314,13 +316,13 @@ class CPU {
         cpu.flags.DECIMAL = 1;
       },
       sta: function(info) {
-        cpu.MMAP.write(info.address, cpu.A);
+        cpu.write(info.address, cpu.A);
       },
       stx: function(info) {
-        cpu.MMAP.write(info.address, cpu.X);
+        cpu.write(info.address, cpu.X);
       },
       sty: function(info) {
-        cpu.MMAP.write(info.address, cpu.Y);
+        cpu.write(info.address, cpu.Y);
       },
       tax: function(info) {
         cpu.X = cpu.A;
@@ -351,7 +353,7 @@ class CPU {
         cpu.flags.DECIMAL = 1;
       },
       inc: function(info) {
-        let value = cpu.MMAP.read(info.addres) + 1;
+        let value = cpu.read(info.addres) + 1;
         cpu.write(info.address, value);
         cpu._setZN(value);
       },
@@ -431,6 +433,7 @@ class CPU {
       op.sed, op.sbc, op.nop, op.isc, op.nop, op.sbc, op.inc, op.isc
 
     ];
+
     this.instructionsNames = [
 
       "brk", "ora", "kil", "slo", "nop", "ora", "asl", "slo",
@@ -467,7 +470,6 @@ class CPU {
       "sed", "sbc", "nop", "isc", "nop", "sbc", "inc", "isc"
 
     ];
-
 
     this.instructionModes = [
 
@@ -594,6 +596,78 @@ class CPU {
     return this.registers.SP;
   }
 
+  get PC() {
+    return this.registers.PC;
+  }
+
+  set PC(address) {
+    this.registers.PC = address & 0xFFFF;
+  }
+
+  read(address) {
+    switch(true) {
+
+      case address < 0x2000: // RAM
+        return this.NES.RAM[address % 0x0800];
+        break;
+      case address < 0x4000: // PPU
+        break;
+      case address == 0x4014:
+        break;
+      case address == 0x4015:
+        break;
+      case address == 0x4016: // Controller 1
+        break;
+      case address == 0x4017: // Controller 2
+        break;
+      case address < 0x6000:
+        // I/O registers
+        break;
+      case address >= 0x6000:
+        return this.MMAP.read(address);
+        break;
+
+      default:
+        this.NES.log("Unhandled CPU read at address ${address.toString(16).toUpperCase()}");
+        break;
+    }
+  }
+
+  write(address, value) {
+    switch(address) {
+      default:
+        this.MMAP.write(address, value);
+        break;
+    }
+  }
+
+  read16(address) {
+    return (this.read(address+1) << 8) | this.read(address);
+  }
+
+  read16bug(address) {
+    let a = address;
+    let b = (a & 0xFF00) | (a+1);
+    let lo = this.read(a);
+    let hi = this.read(b);
+    return (hi << 8) | lo;
+  }
+
+  push(value) {
+    this.stack.push(value);
+  }
+
+  push16(value) {
+    this.stack.push16(value);
+  }
+
+  pull() {
+    return this.stack.pull();
+  }
+
+  pull16() {
+    return this.stack.pull16();
+  }
 
   _setZ(value) { // Sets Zero registers if value is zero
     let flag = (value == 0 ? 1: 0);
@@ -632,12 +706,6 @@ class CPU {
   _getAddress(mode) { // Finds addressmode and returns address
 
     let cpu         = this; //Lets create some shortcuts.
-      cpu.read      = function(addr) { return cpu.MMAP.read(addr) };
-      cpu.read16    = function(addr) { return cpu.MMAP.read16(addr) };
-      cpu.read16bug = function(addr) { return cpu.MMAP.read16bug(addr) };
-      cpu.write     = function(addr, val) { return cpu.MMAP.write(addr, val) };
-      cpu.write16   = function(addr, val) { return cpu.MMAP.write16(addr, val) };
-
     let modes     = cpu.addressingMode;
     let pageCross = false;
     let address   = null;
@@ -645,51 +713,51 @@ class CPU {
     switch(mode) { // Get address in comparison with addressing mode.
 
       case modes.absolute:
-        address = cpu.read16(cpu.registers.PC + 1);
+        address = cpu.read16(cpu.PC + 1);
         break;
       case modes.absoluteX:
-        address = cpu.read16(cpu.registers.PC + 1) + cpu.registers.X;
-        pageCross = cpu._pagesDiffer(address - cpu.registers.X, address);
+        address = cpu.read16(cpu.PC + 1) + cpu.X;
+        pageCross = cpu._pagesDiffer(address - cpu.X, address);
         break;
       case modes.absoluteY:
-        address = cpu.read16(cpu.registers.PC + 1) + cpu.registers.Y;
-        pageCross = cpu._pagesDiffer(address - cpu.registers.Y, address);
+        address = cpu.read16(cpu.PC + 1) + cpu.Y;
+        pageCross = cpu._pagesDiffer(address - cpu.Y, address);
         break;
       case modes.accumulator:
         address = 0;
         break;
       case modes.immediate:
-        address = cpu.registers.PC + 1;
+        address = cpu.PC + 1;
         break;
       case modes.implied:
         address = 0;
         break;
       case modes.indexedIndirect:
-        address = cpu.read16bug(cpu.read(cpu.registers.PC+1) + cpu.registers.X);
+        address = cpu.read16bug(cpu.read(cpu.PC+1) + cpu.X);
         break;
       case modes.indirect:
-        address = cpu.read16bug(cpu.read16(cpu.registers.PC + 1));
+        address = cpu.read16bug(cpu.read16(cpu.PC + 1));
         break;
       case modes.indirectIndexed:
-        address = cpu.read16bug(cpu.read(cpu.registers.PC+1)) + cpu.registers.Y;
-        pageCross = cpu._pagesDiffer(address - cpu.registers.Y, address);
+        address = cpu.read16bug(cpu.read(cpu.PC+1)) + cpu.Y;
+        pageCross = cpu._pagesDiffer(address - cpu.Y, address);
         break;
       case modes.relative:
-        let offset = cpu.read(cpu.registers.PC+1);
+        let offset = cpu.read(cpu.PC+1);
         if(offset < 0x80) {
-          address = cpu.registers.PC + 2 + offset;
+          address = cpu.PC + 2 + offset;
         } else {
-          address = cpu.registers.PC + 2 + offset - 0x100;
+          address = cpu.PC + 2 + offset - 0x100;
         }
         break;
       case modes.zeroPage:
-        address = cpu.read(cpu.registers.PC + 1);
+        address = cpu.read(cpu.PC + 1);
         break;
       case modes.zeroPageX:
-        address = cpu.read(cpu.registers.PC + 1) + cpu.registers.X;
+        address = cpu.read(cpu.PC + 1) + cpu.X;
         break;
       case modes.zeroPageY:
-        address = cpu.read(cpu.registers.PC + 1) + cpu.registers.Y;
+        address = cpu.read(cpu.PC + 1) + cpu.Y;
         break;
       default:
         this.NES.fail("Invalid addressing mode.");
@@ -724,7 +792,7 @@ class CPU {
     };
 
     this.registers = {
-      PC: this.NES.MMAP.read16(0xFFFC), // 16-bit Program Counter from reset vector
+      PC: this.read16(0xFFFC), // 16-bit Program Counter from reset vector
       SP: 0xFD,  // Stack pointer
       A:  0x00,   // Accumulator (used in arithmetic)
       X:  0x00,   // X register
@@ -773,7 +841,7 @@ class CPU {
 
     let cpu       = this;
     let cycles    = cpu.cycles;
-    let opcode    = this.MMAP.read(cpu.registers.PC);
+    let opcode    = cpu.read(cpu.PC);
     let mode      = cpu.instructionModes[opcode];
     let info      = null;
     let address   = cpu._getAddress(mode);
@@ -781,13 +849,13 @@ class CPU {
 
     info = {
       address: address,
-      pc: cpu.registers.PC,
+      pc: cpu.PC,
       registers: cpu.registers,
       mode: mode
     };
 
     cpu.cycles        += cpu.instructionCycles[opcode]; // Increase cycles for given operation
-    this.registers.PC += this.instructionSizes[opcode];
+    cpu.PC            += this.instructionSizes[opcode];
 
     // Execute instruction
     let instruction = cpu.instructions[opcode];
